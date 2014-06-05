@@ -1,0 +1,12 @@
+{
+    "name": "Service Manager Example",
+    "description": "This project shows some examples of how to use ZF2 service manager",
+    "keywords": [
+        "service manager",
+        "zf2"
+    ],
+    "require": {
+        "php": ">=5.3.3",
+        "zendframework/zend-servicemanager": "2.3.*"
+    }
+}
