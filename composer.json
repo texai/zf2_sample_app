@@ -1,6 +1,6 @@
 {
-    "name": "Service Manager Example",
-    "description": "This project shows some examples of how to use ZF2 service manager",
+    "name": "ZF2 Sample App",
+    "description": "This sample app shows how to use many of the ZF2 components",
     "keywords": [
         "service manager",
         "zf2"
