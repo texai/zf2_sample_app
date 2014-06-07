@@ -7,6 +7,7 @@ use Customer\Address;
 use Customer\Customer;
 use Product\Category;
 use Product\Product;
+use Sales\Sales;
 use Sales\Order;
 use Sales\Item;
 
@@ -16,38 +17,95 @@ $loader->add('Customer', './' );
 $loader->add('Product', './' );
 $loader->add('Sales', './' );
 
-$address1 = new Address(array(
-    'number'  => 145,
-    'street'  => 'Featherstone Street',
-    'city'    => 'London',
-    'country' => 'England'
-));
-$address2 = new Address(array(
-    'number'  => 61,
-    'street'  => 'Wellfield Road',
-    'city'    => 'Cardiff',
-    'country' => 'Wales'
-));
-$address3 = new Address(array(
-    'number'  => 41,
-    'street'  => 'George Street',
-    'city'    => 'London',
-    'country' => 'England'
-));
-$address4 = new Address(array(
-    'number'  => 46,
-    'street'  => 'Morningside Road',
-    'city'    => 'Edinburgh',
-    'country' => 'Scotland'
-));
-$address5 = new Address(array(
-    'number'  => 27,
-    'street'  => 'Colmore Road',
-    'city'    => 'Birmingham',
-    'country' => 'England'
-));
-$addresses = compact('address1', 'address2', 'address3', 'address4', 'address5');
+$sm_config = array(
+    'invokables' => array(
+        'LondonWarehouse'  => 'Product\Warehouse',
+        'LimaWarehouse'    => 'Product\Warehouse',
+        'NewYorkWarehouse' => 'Product\Warehouse',
+    ),
+    'aliases' => array (
+        'MainWarehouse'    => 'LondonWarehouse',
+    ),
+    'initializers' => array(
+        'Category' => 'Product\CategoryInitializer',
+        'Warehouse' => 'Product\WarehouseInitializer',
+    ),
+    'factories' => array(
+        'Address'       => 'Customer\Factory\AddressFactory',
+        'Product'       => 'Product\Factory\ProductFactory',
+        'BooksCategory' => 'Product\Factory\BooksCategoryFactory',
+        'MusicCategory' => 'Product\Factory\MusicCategoryFactory',
+        'VideoCategory' => 'Product\Factory\VideoCategoryFactory',
+        'Gift'          => function ($serviceManager) {
+            $book = new Product(array(
+                'code'        => '9781449392772',
+                'name'        => 'Programming PHP',
+                'description' => 'Creating Dynamic Pages',
+            ));
+            $book->setMainCategory($serviceManager->get('BooksCategory'));
+            return $book;
+        },
+    ),
+    'abstract_factories' => array(
+        'Product\Factory\WarehouseAbstractFactory',
+    ),
+    'shared' => array(
+        'Gift'    => false,
+        'Address' => false,
+        'Product' => false,
+    ),
+);
 
+$app_config = array(
+    'categories' => array(
+        'discount_policies' => array (
+            'CTBUK' => array(
+                'Mon' =>  7.00,
+                'Wed' => 15.00,
+                'Fri' => 30.00,
+                'Sun' => 50.00,
+            ),
+            'CTMUK' => array(
+                'Sat' => 40.00,
+                'Sun' => 30.00,
+            ),
+            'CTVUK' => array(
+                'Tue' => 10.00,
+                'Wed' => 10.00,
+                'Thu' => 13.00,
+            ),
+        ),
+    ),
+);
+
+$sm = new ServiceManager(new Config($sm_config));
+$sm->setService('Config', $app_config);
+$lnWarehouse = $sm->get('LondonWarehouse');
+$liWarehouse = $sm->get('LimaWarehouse');
+$nyWarehouse = $sm->get('NewYorkWarehouse');
+$blWarehouse = $sm->get('BerlinWarehouse');
+$warehouse   = $sm->get('MainWarehouse');
+$warehouses = compact('lnWarehouse', 'liWarehouse', 'nyWarehouse', 'warehouse', 'blwarehouse');
+echo '<h2>ALWAYS A NEW GIFT INSTANCE</h2>';
+$gift1 = $sm->get('Gift');
+$gift2 = $sm->get('Gift');
+echo '<pre>';
+var_dump(spl_object_hash($gift1));
+echo '</pre>';
+echo '<pre>';
+var_dump(spl_object_hash($gift2));
+echo '</pre>';
+echo '<h2>AVAILABLE WAREHOUSES</h2>' . PHP_EOL;
+echo '<pre>';
+var_dump($warehouses);
+echo '</pre>';
+
+$address1 = $sm->get('Address');
+$address2 = $sm->get('Address');
+$address3 = $sm->get('Address');
+$address4 = $sm->get('Address');
+$address5 = $sm->get('Address');
+$addresses = compact('address1', 'address2', 'address3', 'address4', 'address5');
 echo '<h2>AVAILABLE ADDRESSES</h2>' . PHP_EOL;
 echo '<pre>';
 var_dump($addresses);
@@ -82,180 +140,103 @@ echo '<pre>';
 var_dump($yukihiro);
 echo '</pre>';
 
-$booksCategory = new Category(array(
-    'code'        => 'CTBUK',
-    'name'        => 'Books',
-    'description' => 'Books, Calendars, Card Decks, Sheet Music, Magazine, Journals'
-));
-$musicCategory = new Category(array(
-    'code'        => 'CTMUK',
-    'name'        => 'Music',
-    'description' => 'CDs, Vinyl, and other sound recordings'
-));
-$moviesCategory = new Category(array(
-    'code'        => 'CTOUK',
-    'name'        => 'Movies',
-    'description' => 'Movies, TV'
-));
-$categories = compact('booksCategory', 'musicCategory', 'moviesCategory');
-echo '<h2>AVAILABLE CATEGORIES</h2>' . PHP_EOL;
-echo '<pre>';
-var_dump($categories);
-echo '</pre>';
-
-$pythonBook = new Product(array(
-    'code'        => '9781449355739',
-    'name'        => 'Learning Python, 5th Edition',
-    'description' => 'Powerful Object-Oriented Programming'
-));
-$pythonBook->setMainCategory($booksCategory);
-$phpBook = new Product(array(
-    'code'        => '9781449392772',
-    'name'        => 'Programming PHP',
-    'description' => 'Creating Dynamic Pages',
-));
-$phpBook->setMainCategory($booksCategory);
-$rubyBook = new Product(array(
-    'code'        => '9780596516178',
-    'name'        => 'The Ruby Programming Language',
-    'description' => '',
-));
-$rubyBook->setMainCategory($booksCategory);
-
-$jazzAlbum = new Product(array(
-    'code'        => 'B0030GBSVG',
-    'name'        => 'Strangers In The Night',
-    'description' => 'The very best of Frank Sinatra'
-));
-$jazzAlbum->setMainCategory($musicCategory);
-$rockAlbum = new Product(array(
-    'code'        => 'B000002GYN',
-    'name'        => 'Eagles',
-    'description' => 'The very best of Eagles'
-));
-$rockAlbum->setMainCategory($musicCategory);
-$grungeAlbum = new Product(array(
-    'code'        => 'B000003TA4',
-    'name'        => 'Nevermind',
-    'description' => 'Nirvana Nevermind'
-));
-$grungeAlbum->setMainCategory($musicCategory);
-
-$sherlockTVShow = new Product(array(
-    'code'        => 'B00E3UN44W',
-    'name'        => 'Sherlock',
-    'description' => 'Modern version of one of the most greatest detectives of al times'
-));
-$sherlockTVShow->setMainCategory($moviesCategory);
-$lutherTVShow = new Product(array(
-    'code'        => 'B0041QSZFG',
-    'name'        => 'Luther',
-    'description' => ''
-));
-$lutherTVShow->setMainCategory($moviesCategory);
-$blackMirrorTVShow = new Product(array(
-    'code'        => 'B008M0P9I8',
-    'name'        => 'Black Mirror',
-    'description' => ''
-));
-$blackMirrorTVShow->setMainCategory($moviesCategory);
-$products = compact(
-    'pythonBook',
-    'phpBook',
-    'rubyBook',
-    'jazzAlbum',
-    'rockAlbum',
-    'grungeAlbum',
-    'sherlockTVShow',
-    'lutherTVShow',
-    'blackMirrorTVShow'
-);
+$products = array();
+for ($i = 0; $i < 20; $i++) {
+    $product        = $sm->get('Product');
+    $key            = $product->getCode();
+    $products[$key] = $product;
+}
 echo '<h2>AVAILABLE PRODUCTS</h2>' . PHP_EOL;
 echo '<pre>';
 var_dump($products);
 echo '</pre>';
 
-$order1 = new Order(array(
+$sales = new Sales();
+$order1 = $sales->createOrder(array(
     'number'   => '94KEI1938300Z1',
     'customer' => $rasmus,
 ));
-$item0101 = new Item(array(
-    'product' => $rubyBook,
+$order2 = $sales->createOrder(array('customer' => $yukihiro));
+$order3 = $sales->createOrder(array('customer' => $yukihiro));
+$item = new Item(array(
+    'product'  => $sm->get('Product'),
     'quantity' => 3,
     'discount_percentage' => 0.00,
     'price' => 2000
 ));
-$order1->addItem($item0101);
-$item0102 = new Item(array(
-    'product' => $pythonBook,
+$sales->addItem($order1, $item);
+$item = new Item(array(
+    'product' => $sm->get('Product'),
     'quantity' => 2,
     'discount_percentage' => 0.00,
     'price' => 1500
 ));
-$order1->addItem($item0102);
-$item0103 = new Item(array(
-    'product' => $jazzAlbum,
+$sales->addItem($order1, $item);
+$item = new Item(array(
+    'product' => $sm->get('Product'),
     'quantity' => 1,
     'discount_percentage' => 0.00,
     'price' => 700
 ));
-$order1->addItem($item0103);
-$item0104 = new Item(array(
-    'product' => $sherlockTVShow,
+$sales->addItem($order2, $item);
+$item = new Item(array(
+    'product' => $sm->get('Product'),
     'quantity' => 1,
     'discount_percentage' => 0.00,
     'price' => 4000
 ));
-$order1->addItem($item0104);
-
-$order2 = new Order(array('customer' => $yukihiro));
-$item0201 = new Item(array(
-    'product' => $phpBook,
+$sales->addItem($order2, $item);
+$item = new Item(array(
+    'product' => $sm->get('Product'),
     'quantity' => 7,
     'discount_percentage' => 3.00,
     'price' => 2013
 ));
-$order2->addItem($item0201);
-$item0202 = new Item(array(
-    'product' => $pythonBook,
+$sales->addItem($order1, $item);
+$item = new Item(array(
+    'product' => $sm->get('Product'),
+    'quantity' => 7,
+    'discount_percentage' => 3.00,
+    'price' => 2013
+));
+$sales->addItem($order2, $item);
+$item = new Item(array(
+    'product' => $sm->get('Product'),
     'quantity' => 9,
     'discount_percentage' => 13.00,
     'price' => 2599
 ));
-$order2->addItem($item0202);
-$item0203 = new Item(array(
-    'product' => $jazzAlbum,
+$sales->addItem($order3, $item);
+$item = new Item(array(
+    'product' => $sm->get('Product'),
     'quantity' => 2,
     'discount_percentage' => 0.00,
     'price' => 700
 ));
-$order2->addItem($item0203);
-$item0204 = new Item(array(
-    'product' => $sherlockTVShow,
+$sales->addItem($order2, $item);
+$item = new Item(array(
+    'product' => $sm->get('Product'),
     'quantity' => 2,
     'discount_percentage' => 0.00,
     'price' => 4000
 ));
-$order2->addItem($item0204);
-
-$order3 = new Order(array('customer' => $yukihiro));
-$item0301 = new Item(array(
-    'product' => $rockAlbum,
+$sales->addItem($order3, $item);
+$item = new Item(array(
+    'product' => $sm->get('Product'),
     'quantity' => 1,
     'discount_percentage' => 0.00,
     'price' => 5989
 ));
-$order3->addItem($item0301);
-$item0302 = new Item(array(
-    'product' => $lutherTVShow,
+$sales->addItem($order1, $item);
+$item = new Item(array(
+    'product' => $sm->get('Product'),
     'quantity' => 2,
     'discount_percentage' => 7.00,
     'price' => 5689
 ));
-$order3->addItem($item0302);
+$sales->addItem($order3, $item);
 $orders = compact('order1', 'order2', 'order3');
 echo '<h2>AVAILABLE ORDERS</h2>' . PHP_EOL;
 echo '<pre>';
 var_dump($orders);
 echo '</pre>';
-//$sm = new ServiceManager(new Config(array()));

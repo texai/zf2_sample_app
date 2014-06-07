@@ -10,11 +10,14 @@ class Category
 
     private $description;
 
+    private $discount;
+
     public function __construct(array $options = array())
     {
         $this->code        = (isset($options['code'])) ? $options['code'] : null;
         $this->name        = (isset($options['name'])) ? $options['name'] : null;
         $this->description = (isset($options['description'])) ? $options['description'] : null;
+        $this->discount    = (isset($options['discount'])) ? $options['discount'] : 0.00;
     }
 
     public function getCode()
@@ -32,6 +35,11 @@ class Category
         return $ths->description;
     }
 
+    public function getDiscount()
+    {
+        return $this->discount;
+    }
+
     public function setCode($code)
     {
         $this->code = $code;
@@ -47,6 +55,12 @@ class Category
     public function setDescription($description)
     {
         $this->description = $description;
+        return $this;
+    }
+
+    public function setDiscount($discount)
+    {
+        $this->discount = $discount;
         return $this;
     }
 }
