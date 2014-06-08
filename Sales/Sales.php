@@ -17,7 +17,7 @@ class Sales
         $this->orders = array();
     }
 
-    public function createOrder(array $data)
+    public function createOrder(array $data = array())
     {
         $order = new Order($data);
         $hash  = spl_object_hash($order);

@@ -3,32 +3,33 @@ date_default_timezone_set('America/Lima');
 
 use Zend\ServiceManager\ServiceManager;
 use Zend\ServiceManager\Config;
-use Customer\Address;
+use Zend\EventManager\EventManager;
+use Zend\EventManager\ResponseCollection;
 use Customer\Customer;
-use Product\Category;
 use Product\Product;
 use Sales\Sales;
-use Sales\Order;
 use Sales\Item;
 
 $loader = include 'vendor/autoload.php';
 $loader->add('Zend', 'vendor/zendframework/zend-servicemanager/');
+$loader->add('Zend', 'vendor/zendframework/zend-eventmanager/');
 $loader->add('Customer', './' );
 $loader->add('Product', './' );
 $loader->add('Sales', './' );
 
 $sm_config = array(
     'invokables' => array(
-        'LondonWarehouse'  => 'Product\Warehouse',
-        'LimaWarehouse'    => 'Product\Warehouse',
-        'NewYorkWarehouse' => 'Product\Warehouse',
+        'LondonWarehouse'    => 'Product\Warehouse',
+        'LimaWarehouse'      => 'Product\Warehouse',
+        'NewYorkWarehouse'   => 'Product\Warehouse',
+        'SharedEventManager' => 'Zend\EventManager\SharedEventManager',
     ),
     'aliases' => array (
-        'MainWarehouse'    => 'LondonWarehouse',
+        'MainWarehouse' => 'LondonWarehouse',
     ),
     'initializers' => array(
-        'Category' => 'Product\CategoryInitializer',
-        'Warehouse' => 'Product\WarehouseInitializer',
+        'CategoryInitializer'  => 'Product\Initializer\CategoryInitializer',
+        'WarehouseInitializer' => 'Product\Initializer\WarehouseInitializer',
     ),
     'factories' => array(
         'Address'       => 'Customer\Factory\AddressFactory',
@@ -41,9 +42,52 @@ $sm_config = array(
                 'code'        => '9781449392772',
                 'name'        => 'Programming PHP',
                 'description' => 'Creating Dynamic Pages',
+                'price'       => 0.00
             ));
             $book->setMainCategory($serviceManager->get('BooksCategory'));
             return $book;
+        },
+        'EventManager' => function ($serviceManager) {
+            $eventManager       = new EventManager();
+            $sharedEventManager = $serviceManager->get('SharedEventManager');
+            $sharedEventManager->attach('Sales\Order', 'setItems', function ($event) {
+                $order = $event->getTarget();
+                $items = $event->getParam('items');
+                $total = 0.00;
+                foreach ($items as $item) {
+                    $total += $item->getTotal();
+                }
+                $order->setTotal($total);
+            });
+            $sharedEventManager->attach('Sales\Order', 'addItem.pre', function ($event) {
+                $order   = $event->getTarget();
+                $item    = $event->getParam('item');
+                $product = $item->getProduct();
+                $item->setPrice($product->getPrice());
+                if ($product->hasDiscount()) {
+                   $item->setDiscountPercentage($product->getDiscountPercentage());
+                }
+            }, 50);
+            $sharedEventManager->attach('Sales\Order', 'addItem.post', function ($event) {
+                $order = $event->getTarget();
+                $item  = $event->getParam('item');
+                $total = $order->getTotal();
+                $total += $item->getTotal();
+                $order->setTotal($total);
+            }, -50);
+            $sharedEventManager->attach('Sales\Order', 'setCustomer', function ($event) {
+                $order    = $event->getTarget();
+                $customer = $event->getParam('customer');
+                if (!$customer->hasBillingAddress()) {
+                    $event->stopPropagation(true);
+                    $response = new ResponseCollection();
+                    $response->setStopped(true);
+                    return $response;
+                }
+                $order->setBillingAddress($customer->getBillingAddress());
+            });
+            $eventManager->setSharedManager($sharedEventManager);
+            return $eventManager;
         },
     ),
     'abstract_factories' => array(
@@ -95,6 +139,7 @@ echo '</pre>';
 echo '<pre>';
 var_dump(spl_object_hash($gift2));
 echo '</pre>';
+
 echo '<h2>AVAILABLE WAREHOUSES</h2>' . PHP_EOL;
 echo '<pre>';
 var_dump($warehouses);
@@ -152,87 +197,68 @@ var_dump($products);
 echo '</pre>';
 
 $sales = new Sales();
-$order1 = $sales->createOrder(array(
-    'number'   => '94KEI1938300Z1',
-    'customer' => $rasmus,
-));
-$order2 = $sales->createOrder(array('customer' => $yukihiro));
-$order3 = $sales->createOrder(array('customer' => $yukihiro));
+$order1 = $sales->createOrder(array('number'   => '94KEI1938300Z1',));
+$order1->getEventManager()->setSharedManager($sm->get('EventManager')->getSharedManager());
+$order1->setCustomer($rasmus);
+$order2 = $sales->createOrder();
+$order2->getEventManager()->setSharedManager($sm->get('EventManager')->getSharedManager());
+$order2->setCustomer($yukihiro);
+$order3 = $sales->createOrder();
+$order3->getEventManager()->setSharedManager($sm->get('EventManager')->getSharedManager());
+$order3->setCustomer($yukihiro);
 $item = new Item(array(
     'product'  => $sm->get('Product'),
     'quantity' => 3,
-    'discount_percentage' => 0.00,
-    'price' => 2000
 ));
 $sales->addItem($order1, $item);
 $item = new Item(array(
     'product' => $sm->get('Product'),
     'quantity' => 2,
-    'discount_percentage' => 0.00,
-    'price' => 1500
 ));
 $sales->addItem($order1, $item);
 $item = new Item(array(
     'product' => $sm->get('Product'),
     'quantity' => 1,
-    'discount_percentage' => 0.00,
-    'price' => 700
 ));
 $sales->addItem($order2, $item);
 $item = new Item(array(
     'product' => $sm->get('Product'),
     'quantity' => 1,
-    'discount_percentage' => 0.00,
-    'price' => 4000
 ));
 $sales->addItem($order2, $item);
 $item = new Item(array(
     'product' => $sm->get('Product'),
     'quantity' => 7,
-    'discount_percentage' => 3.00,
-    'price' => 2013
 ));
 $sales->addItem($order1, $item);
 $item = new Item(array(
     'product' => $sm->get('Product'),
     'quantity' => 7,
-    'discount_percentage' => 3.00,
-    'price' => 2013
 ));
 $sales->addItem($order2, $item);
 $item = new Item(array(
     'product' => $sm->get('Product'),
     'quantity' => 9,
-    'discount_percentage' => 13.00,
-    'price' => 2599
 ));
 $sales->addItem($order3, $item);
 $item = new Item(array(
     'product' => $sm->get('Product'),
     'quantity' => 2,
-    'discount_percentage' => 0.00,
-    'price' => 700
 ));
 $sales->addItem($order2, $item);
 $item = new Item(array(
     'product' => $sm->get('Product'),
     'quantity' => 2,
-    'discount_percentage' => 0.00,
-    'price' => 4000
 ));
 $sales->addItem($order3, $item);
 $item = new Item(array(
     'product' => $sm->get('Product'),
     'quantity' => 1,
-    'discount_percentage' => 0.00,
-    'price' => 5989
 ));
 $sales->addItem($order1, $item);
 $item = new Item(array(
     'product' => $sm->get('Product'),
     'quantity' => 2,
-    'discount_percentage' => 7.00,
-    'price' => 5689
 ));
 $sales->addItem($order3, $item);
 $orders = compact('order1', 'order2', 'order3');

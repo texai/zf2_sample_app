@@ -35,7 +35,7 @@ class Category
         return $ths->description;
     }
 
-    public function getDiscount()
+    public function getDiscountPercentage()
     {
         return $this->discount;
     }
@@ -58,7 +58,7 @@ class Category
         return $this;
     }
 
-    public function setDiscount($discount)
+    public function setDiscountPercentage($discount)
     {
         $this->discount = $discount;
         return $this;

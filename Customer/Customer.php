@@ -56,6 +56,12 @@ class Customer
         if ('contact' === $type) return $this->addresses['contact'];
     }
 
+    public function getBillingAddress()
+    {
+        if (!$this->hasBillingAddress()) return null;
+        return $this->addresses['billing'];
+    }
+
     public function setFirstName($firstName)
     {
         $this->firstName = $firstName;
@@ -84,5 +90,10 @@ class Customer
     {
         $this->addresses = $addresses;
         return $this;
+    }
+
+    public function hasBillingAddress()
+    {
+        return isset($this->addresses['billing']);
     }
 }

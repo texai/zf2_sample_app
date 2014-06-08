@@ -1,6 +1,6 @@
 <?php
 
-namespace Product;
+namespace Product\Initializer;
 
 use DateTime;
 
@@ -24,7 +24,7 @@ class CategoryInitializer implements InitializerInterface
             $now              = new DateTime();
             $day              = $now->format('D');
             $discount         = (isset($discountPolicies[$day])) ? $discountPolicies[$day] : 0.00;
-            $instance->setDiscount($discount);
+            $instance->setDiscountPercentage($discount / 100);
         }
     }
 }

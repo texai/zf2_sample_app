@@ -19,7 +19,7 @@ class VideoCategoryFactory implements FactoryInterface
     public function createService(ServiceLocatorInterface $serviceLocator)
     {
         return new Category(array(
-            'code'        => 'CTOUK',
+            'code'        => 'CTVUK',
             'name'        => 'Movies',
             'description' => 'Movies, TV'
         ));

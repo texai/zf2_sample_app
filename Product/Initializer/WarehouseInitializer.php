@@ -1,6 +1,6 @@
 <?php
 
-namespace Product;
+namespace Product\Initializer;
 
 use Zend\ServiceManager\InitializerInterface;
 use Zend\ServiceManager\ServiceLocatorInterface;

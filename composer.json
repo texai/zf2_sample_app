@@ -3,10 +3,12 @@
     "description": "This sample app shows how to use many of the ZF2 components",
     "keywords": [
         "service manager",
+        "event manager",
         "zf2"
     ],
     "require": {
         "php": ">=5.3.3",
-        "zendframework/zend-servicemanager": "2.3.*"
+        "zendframework/zend-servicemanager": "2.3.*",
+        "zendframework/zend-eventmanager": "2.3.*"
     }
 }

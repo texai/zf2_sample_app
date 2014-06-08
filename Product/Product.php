@@ -2,6 +2,7 @@
 
 namespace Product;
 
+
 class Product
 {
     private $code;
@@ -12,11 +13,14 @@ class Product
 
     private $categories;
 
+    private $price;
+
     public function __construct(array $options = array())
     {
         $this->code        = (isset($options['code'])) ? $options['code'] : null;
         $this->name        = (isset($options['name'])) ? $options['name'] : null;
         $this->description = (isset($options['description'])) ? $options['description'] : null;
+        $this->price       = (isset($options['price'])) ? $options['price'] : null;
         $this->categories  = (isset($options['categories'])) ? $options['categories'] : null;
     }
 
@@ -33,6 +37,16 @@ class Product
     public function getDescription()
     {
         return $this->description;
+    }
+
+    public function getPrice()
+    {
+        return $this->price;
+    }
+
+    public function getDiscountPercentage()
+    {
+        return $this->getMainCategory()->getDiscountPercentage();
     }
 
     public function setCode($code)
@@ -57,6 +71,12 @@ class Product
         return $this;
     }
 
+    public function setPrice($price)
+    {
+        $this->price = $price;
+        return $this;
+    }
+
     public function setDescription($description)
     {
         $this->description = $description;
@@ -73,5 +93,10 @@ class Product
     {
         $this->categories = $categories;
         return $this;
+    }
+
+    public function hasDiscount()
+    {
+        return (0.00 < $this->getMainCategory()->getDiscountPercentage());
     }
 }
