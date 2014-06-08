@@ -156,11 +156,11 @@ class Order implements EventManagerAwareInterface
 
     public function addItem(Item $item)
     {
-        $counter = count($this->items);
-        $params  = compact('item');
-        $item->setNumber($counter + 1);
+        $params = compact('item');
         $this->getEventManager()
              ->trigger(__FUNCTION__ . '.pre', $this, $params);
+        $counter = count($this->items);
+        $item->setNumber($counter + 1);
         $this->items[$counter] = $item;
         $this->getEventManager()
              ->trigger(__FUNCTION__ . '.post', $this, $params);

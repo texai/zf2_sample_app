@@ -2,6 +2,8 @@
 
 namespace Customer;
 
+use Geo\Country;
+
 /**
  *
  */
@@ -64,7 +66,7 @@ class Address
         return $this;
     }
 
-    public function setCountry($country)
+    public function setCountry(Country $country)
     {
         $this->country = $country;
         return $this;

@@ -7,8 +7,11 @@ use Zend\EventManager\EventManager;
 use Zend\EventManager\ResponseCollection;
 use Customer\Customer;
 use Product\Product;
+use Product\Warehouse;
 use Sales\Sales;
 use Sales\Item;
+use Sales\ListenerAggregate\OrderListener;
+use Geo\Country;
 
 $loader = include 'vendor/autoload.php';
 $loader->add('Zend', 'vendor/zendframework/zend-servicemanager/');
@@ -16,12 +19,10 @@ $loader->add('Zend', 'vendor/zendframework/zend-eventmanager/');
 $loader->add('Customer', './' );
 $loader->add('Product', './' );
 $loader->add('Sales', './' );
+$loader->add('Geo', './' );
 
 $sm_config = array(
     'invokables' => array(
-        'LondonWarehouse'    => 'Product\Warehouse',
-        'LimaWarehouse'      => 'Product\Warehouse',
-        'NewYorkWarehouse'   => 'Product\Warehouse',
         'SharedEventManager' => 'Zend\EventManager\SharedEventManager',
     ),
     'aliases' => array (
@@ -32,12 +33,27 @@ $sm_config = array(
         'WarehouseInitializer' => 'Product\Initializer\WarehouseInitializer',
     ),
     'factories' => array(
-        'Address'       => 'Customer\Factory\AddressFactory',
-        'Product'       => 'Product\Factory\ProductFactory',
-        'BooksCategory' => 'Product\Factory\BooksCategoryFactory',
-        'MusicCategory' => 'Product\Factory\MusicCategoryFactory',
-        'VideoCategory' => 'Product\Factory\VideoCategoryFactory',
-        'Gift'          => function ($serviceManager) {
+        'Address'         => 'Customer\Factory\AddressFactory',
+        'Product'         => 'Product\Factory\ProductFactory',
+        'BooksCategory'   => 'Product\Factory\BooksCategoryFactory',
+        'MusicCategory'   => 'Product\Factory\MusicCategoryFactory',
+        'VideoCategory'   => 'Product\Factory\VideoCategoryFactory',
+        'LondonWarehouse' => function ($serviceManager) {
+            $country   = new Country('United Kingdom', 'UK');
+            $warehouse = new Warehouse($country);
+            return $warehouse;
+        },
+        'LimaWarehouse' => function ($serviceManager) {
+            $country   = new Country('Peru', 'PE');
+            $warehouse = new Warehouse($country);
+            return $warehouse;
+        },
+        'NewYorkWarehouse' => function ($serviceManager) {
+            $country   = new Country('United States', 'US');
+            $warehouse = new Warehouse($country);
+            return $warehouse;
+        },
+        'Gift'             => function ($serviceManager) {
             $book = new Product(array(
                 'code'        => '9781449392772',
                 'name'        => 'Programming PHP',
@@ -47,44 +63,53 @@ $sm_config = array(
             $book->setMainCategory($serviceManager->get('BooksCategory'));
             return $book;
         },
-        'EventManager' => function ($serviceManager) {
+        'EventManager'     => function ($serviceManager) {
             $eventManager       = new EventManager();
             $sharedEventManager = $serviceManager->get('SharedEventManager');
-            $sharedEventManager->attach('Sales\Order', 'setItems', function ($event) {
-                $order = $event->getTarget();
-                $items = $event->getParam('items');
-                $total = 0.00;
-                foreach ($items as $item) {
-                    $total += $item->getTotal();
+            $orderListener      = new OrderListener();
+            $sharedEventManager->attachAggregate($orderListener);
+            $sharedEventManager->attach('Sales\Sales', 'addItem', function ($event) use ($serviceManager) {
+                $sales         = $event->getTarget();
+                $order         = $event->getParam('order');
+                $item          = $event->getParam('item');
+                $countryCode   = $order->getBillingAddress()
+                                       ->getCountry()
+                                       ->getCode();
+                $product       = $item->getProduct();
+                $mainWarehouse = $serviceManager->get('MainWarehouse');
+                if (isset($sales->warehouses[$countryCode])) {
+                    $warehouse = $sales->warehouses[$countryCode];
+                    if (!$warehouse->isInStock($product, $item->getQuantity())) {
+                        $warehouse = $mainWarehouse;
+                    }
+                } else {
+                    $warehouse = $mainWarehouse;
                 }
-                $order->setTotal($total);
-            });
-            $sharedEventManager->attach('Sales\Order', 'addItem.pre', function ($event) {
-                $order   = $event->getTarget();
-                $item    = $event->getParam('item');
-                $product = $item->getProduct();
-                $item->setPrice($product->getPrice());
-                if ($product->hasDiscount()) {
-                   $item->setDiscountPercentage($product->getDiscountPercentage());
+                if (!$warehouse->isInStock($product, $item->getQuantity())) {
+                    $otherWarehouses = array_diff_key(
+                        $sales->getWarehouses(),
+                        array($warehouse->getCountry()
+                                        ->getCode() => $warehouse)
+                    );
+                    $outOfStock = true;
+                    foreach ($otherWarehouses as $otherWarehouse) {
+                        if ($otherWarehouse->isInStock($product, $item->getQuantity())) {
+                            $warehouse  = $otherWarehouse;
+                            $outOfStock = false;
+                            break;
+                        }
+                    }
+                    if ($outOfStock) {
+                        $event->stopPropagation(true);
+                        $response = new ResponseCollection();
+                        $response->setStopped(true);
+                        return $response;
+                    }
                 }
-            }, 50);
-            $sharedEventManager->attach('Sales\Order', 'addItem.post', function ($event) {
-                $order = $event->getTarget();
-                $item  = $event->getParam('item');
-                $total = $order->getTotal();
-                $total += $item->getTotal();
-                $order->setTotal($total);
-            }, -50);
-            $sharedEventManager->attach('Sales\Order', 'setCustomer', function ($event) {
-                $order    = $event->getTarget();
-                $customer = $event->getParam('customer');
-                if (!$customer->hasBillingAddress()) {
-                    $event->stopPropagation(true);
-                    $response = new ResponseCollection();
-                    $response->setStopped(true);
-                    return $response;
-                }
-                $order->setBillingAddress($customer->getBillingAddress());
+                $warehouse->dispatch(
+                    $product,
+                    $item->getQuantity()
+                );
             });
             $eventManager->setSharedManager($sharedEventManager);
             return $eventManager;
@@ -124,12 +149,12 @@ $app_config = array(
 
 $sm = new ServiceManager(new Config($sm_config));
 $sm->setService('Config', $app_config);
-$lnWarehouse = $sm->get('LondonWarehouse');
-$liWarehouse = $sm->get('LimaWarehouse');
-$nyWarehouse = $sm->get('NewYorkWarehouse');
-$blWarehouse = $sm->get('BerlinWarehouse');
-$warehouse   = $sm->get('MainWarehouse');
-$warehouses = compact('lnWarehouse', 'liWarehouse', 'nyWarehouse', 'warehouse', 'blwarehouse');
+$warehouses = array(
+    'ENG' => $sm->get('LondonWarehouse'),
+    'PE'  => $sm->get('LimaWarehouse'),
+    'DE'  => $sm->get('BerlinWarehouse'),
+    'US'  => $sm->get('NewYorkWarehouse'),
+);
 echo '<h2>ALWAYS A NEW GIFT INSTANCE</h2>';
 $gift1 = $sm->get('Gift');
 $gift2 = $sm->get('Gift');
@@ -197,6 +222,7 @@ var_dump($products);
 echo '</pre>';
 
 $sales = new Sales();
+$sales->setWarehouses($warehouses);
 $order1 = $sales->createOrder(array('number'   => '94KEI1938300Z1',));
 $order1->getEventManager()->setSharedManager($sm->get('EventManager')->getSharedManager());
 $order1->setCustomer($rasmus);
@@ -208,7 +234,7 @@ $order3->getEventManager()->setSharedManager($sm->get('EventManager')->getShared
 $order3->setCustomer($yukihiro);
 $item = new Item(array(
     'product'  => $sm->get('Product'),
-    'quantity' => 3,
+    'quantity' => 10,
 ));
 $sales->addItem($order1, $item);
 $item = new Item(array(
